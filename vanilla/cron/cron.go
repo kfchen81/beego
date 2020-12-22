@@ -24,13 +24,20 @@ func (this *CronTask) OnlyRun() {
 
 var name2task = make(map[string]*CronTask)
 
-func newTaskCtx() *TaskContext{
+func newTaskCtx(args ...bool) *TaskContext{
 	inst := new(TaskContext)
 	ctx := context.Background()
 	enableDb := beego.AppConfig.DefaultBool("db::ENABLE_DB", true)
 	var o orm.Ormer
 	if enableDb{
 		o = orm.NewOrm()
+		switch len(args) {
+		case 1:
+			usingSlave := args[0]
+			if usingSlave && beego.AppConfig.DefaultBool("slave::ENABLE_SLAVE", false){
+				o.Using("slave")
+			}
+		}
 		ctx = context.WithValue(ctx, "orm", o)
 	}
 
@@ -47,7 +54,7 @@ func newTaskCtx() *TaskContext{
 func taskWrapper(task taskInterface) toolbox.TaskFunc{
 
 	return func() error{
-		taskCtx := newTaskCtx()
+		taskCtx := newTaskCtx(task.UsingSlave())
 		o := taskCtx.GetOrm()
 		ctx := taskCtx.GetCtx()
 

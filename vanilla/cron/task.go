@@ -12,6 +12,7 @@ type taskInterface interface {
 	Run(*TaskContext) error
 	GetName() string
 	IsEnableTx() bool
+	UsingSlave() bool
 }
 
 type Task struct {
@@ -32,6 +33,10 @@ func (t *Task) SetName(name string) {
 
 func (t *Task) IsEnableTx() bool{
 	return true
+}
+
+func (t *Task) UsingSlave() bool{
+	return false
 }
 
 func NewTask(name string) Task{
