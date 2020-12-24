@@ -111,7 +111,7 @@ func (app *App) Run(mws ...MiddleWare) {
 	app.Server.ReadTimeout = time.Duration(BConfig.Listen.ServerTimeOut) * time.Second
 	app.Server.WriteTimeout = time.Duration(BConfig.Listen.ServerTimeOut) * time.Second
 	app.Server.ErrorLog = logs.GetLogger("HTTP")
-	logs.Info(fmt.Sprintf("[server] readtimeout(%v), writetimeout(%v)", app.Server.ReadTimeout, app.Server.WriteTimeout))
+	logs.Info(fmt.Sprintf("[init] http server readtimeout(%v), writetimeout(%v)", app.Server.ReadTimeout, app.Server.WriteTimeout))
 
 	// run graceful mode
 	if BConfig.Listen.Graceful {
