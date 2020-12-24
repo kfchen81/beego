@@ -218,13 +218,13 @@ func init() {
 	redisAddress = beego.AppConfig.String("redis::ADDRESS")
 	dbNum, _ = beego.AppConfig.Int("redis::DB")
 	redisPassword = beego.AppConfig.String("redis::PASSWORD")
-	beego.Info("[init] redis: DISABLE!")
 
 	if redisAddress == "" {
+		beego.Info("[init] redis: DISABLE!")
 		return
 	}
 	
-	maxIdleCount = beego.AppConfig.DefaultInt("redis::POOL_MAX_IDLE", 100)
+	maxIdleCount := beego.AppConfig.DefaultInt("redis::POOL_MAX_IDLE", 100)
 	beego.Info(fmt.Sprintf("[init] redis: %s - %d, maxIdle(%d)", redisAddress, dbNum, maxIdleCount))
 	// initialize a new pool
 	pool = &redis.Pool{
