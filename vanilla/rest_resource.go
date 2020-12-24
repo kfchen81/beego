@@ -432,8 +432,13 @@ func (r *RestResource) GetIntArray(key string) []int {
 	values := make([]int, 0)
 	if datas, ok := r.Name2JSONArray[key]; ok {
 		for _, data := range datas {
-			intValue, _ := strconv.Atoi(data.(json.Number).String())
-			values = append(values, intValue)
+			switch d := data.(type) {
+			case json.Number:
+				intValue, _ := strconv.Atoi(d.String())
+				values = append(values, intValue)
+			default:
+				fmt.Println(fmt.Sprintf("[warn] invalid number(%v) in int array", data))
+			}
 		}
 		return values
 	} else {
