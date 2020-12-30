@@ -46,8 +46,38 @@ var _HTTP_DIAL_KEEPALIVE = 60
 var _HTTP_IdleConnsPerHost = 1000
 var _HTTP_MaxIdleConns = 2000
 var _HTTP_IdleConnTimeout = 60
+var _HTTP_REUSE_TRANSPORT = false
 
 const InvalidJwtError = "jwt:invalid_jwt_token"
+
+
+//func PrintLocalDial(ctx context.Context, network, addr string) (net.Conn, error) {
+//	dial := net.Dialer{
+//		Timeout:   30 * time.Second,
+//		KeepAlive: 30 * time.Second,
+//	}
+//
+//	conn, err := dial.Dial(network, addr)
+//	if err != nil {
+//		return conn, err
+//	}
+//
+//	fmt.Println("connect done, use", conn.LocalAddr().String())
+//
+//	return conn, err
+//}
+
+var globalNetTransport = &http.Transport{
+	DialContext: (&net.Dialer{
+		Timeout: time.Duration(_HTTP_DIAL_TIMEOUT) * time.Second,
+		KeepAlive: time.Duration(_HTTP_DIAL_KEEPALIVE) * time.Second,
+	}).DialContext,
+	MaxIdleConnsPerHost:   _HTTP_IdleConnsPerHost,
+	MaxIdleConns:          _HTTP_MaxIdleConns,
+	IdleConnTimeout:       time.Duration(_HTTP_IdleConnTimeout) * time.Second,
+	TLSHandshakeTimeout:   10 * time.Second,
+	ExpectContinueTimeout: 2 * time.Second,
+}
 
 // Request
 
@@ -116,17 +146,34 @@ func (this *Resource) request(method string, service string, resource string, da
 	//	beego.Warn(fmt.Sprintf("[bid] @resource before create client bid(%s)", bid))
 	//}
 	//创建client
-	var netTransport = &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout: time.Duration(_HTTP_DIAL_TIMEOUT) * time.Second,
-			KeepAlive: time.Duration(_HTTP_DIAL_KEEPALIVE) * time.Second,
-		}).DialContext,
-		MaxIdleConnsPerHost:   _HTTP_IdleConnsPerHost,
-		MaxIdleConns:          _HTTP_MaxIdleConns,
-		IdleConnTimeout:       time.Duration(_HTTP_IdleConnTimeout) * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 2 * time.Second,
+	//var perNetTransport = &http.Transport{
+	//	DialContext: (&net.Dialer{
+	//		Timeout: time.Duration(_HTTP_DIAL_TIMEOUT) * time.Second,
+	//		KeepAlive: time.Duration(_HTTP_DIAL_KEEPALIVE) * time.Second,
+	//	}).DialContext,
+	//	MaxIdleConnsPerHost:   _HTTP_IdleConnsPerHost,
+	//	MaxIdleConns:          _HTTP_MaxIdleConns,
+	//	IdleConnTimeout:       time.Duration(_HTTP_IdleConnTimeout) * time.Second,
+	//	TLSHandshakeTimeout:   10 * time.Second,
+	//	ExpectContinueTimeout: 2 * time.Second,
+	//}
+	var netTransport *http.Transport
+	if _HTTP_REUSE_TRANSPORT {
+		netTransport = globalNetTransport
+	} else {
+		netTransport = &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout: time.Duration(_HTTP_DIAL_TIMEOUT) * time.Second,
+				KeepAlive: time.Duration(_HTTP_DIAL_KEEPALIVE) * time.Second,
+			}).DialContext,
+			MaxIdleConnsPerHost:   _HTTP_IdleConnsPerHost,
+			MaxIdleConns:          _HTTP_MaxIdleConns,
+			IdleConnTimeout:       time.Duration(_HTTP_IdleConnTimeout) * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 2 * time.Second,
+		}
 	}
+	
 	var netClient = &http.Client{
 		Timeout:   time.Second * 20,
 		Transport: netTransport,
@@ -468,7 +515,8 @@ func init() {
 	_HTTP_IdleConnsPerHost = beego.AppConfig.DefaultInt("httpclient::MAX_IDLE_CONNS_PER_HOST", 1000)
 	_HTTP_MaxIdleConns = beego.AppConfig.DefaultInt("httpclient::MAX_IDLE_CONNS", 2000)
 	_HTTP_IdleConnTimeout = beego.AppConfig.DefaultInt("httpclient::IDLE_CONN_TIMEOUT", 60)
-	msg := fmt.Sprintf("[init] use http parameters dial_timeout(%d), dial_keepalive(%d), maxIdleConnsPerHost(%d), maxIdleConns(%d), idleConnTimeout(%d)", _HTTP_DIAL_TIMEOUT, _HTTP_DIAL_KEEPALIVE, _HTTP_IdleConnsPerHost, _HTTP_MaxIdleConns, _HTTP_IdleConnTimeout)
+	_HTTP_REUSE_TRANSPORT = beego.AppConfig.DefaultBool("httpclient::REUSE_TRANSPORT", false)
+	msg := fmt.Sprintf("[init] use http parameters dial_timeout(%d), dial_keepalive(%d), maxIdleConnsPerHost(%d), maxIdleConns(%d), idleConnTimeout(%d), reuse_transport(%v)", _HTTP_DIAL_TIMEOUT, _HTTP_DIAL_KEEPALIVE, _HTTP_IdleConnsPerHost, _HTTP_MaxIdleConns, _HTTP_IdleConnTimeout, _HTTP_REUSE_TRANSPORT)
 	beego.Info(msg)
 
 	userLoginCache = cache.NewLRUCache("user_jwt_token", _RESOURCE_LOGIN_CACHE_SIZE, userTTLOption, v2kOption)
