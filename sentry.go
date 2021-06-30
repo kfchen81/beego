@@ -1,7 +1,6 @@
 package beego
 
 import (
-	go_context "context"
 	"fmt"
 	"github.com/getsentry/raven-go"
 	"github.com/kfchen81/beego/context"
@@ -10,7 +9,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"time"
-	
+
 	"os"
 )
 
@@ -22,8 +21,8 @@ func isEnableSentry() bool {
 
 const SENTRY_CHANNEL_TIMEOUT = 50
 
-// CapturePanicToSentry will collect error info then send to sentry
-func CaptureErrorToSentry(ctx *context.Context, err string) {
+// CaptureErrorToSentry will collect error info then send to sentry
+func CaptureErrorToSentry(ctx *context.Context, err interface{}, extraDatas ...map[string]interface{}) {
 	if !isEnableSentry() {
 		beegoMode := os.Getenv("BEEGO_RUNMODE")
 		if beegoMode == "prod" {
@@ -31,131 +30,39 @@ func CaptureErrorToSentry(ctx *context.Context, err string) {
 		}
 		return
 	}
-	
+
 	data := make(map[string]interface{})
-	data["err_msg"] = err
+	data["err_msg"] = fmt.Sprint(err)
 	data["service_name"] = AppConfig.String("appname")
-	
-	//skipFramesCount := AppConfig.DefaultInt("sentry::SKIP_FRAMES_COUNT", 3)
-	//contextLineCount := AppConfig.DefaultInt("sentry::CONTEXT_LINE_COUNT", 5)
-	//appRootPath := AppConfig.String("appname")
-	//inAppPaths := []string{appRootPath}
-	
-	//var sStacktrace *raven.Stacktrace
-	//var sError, ok = err.(error)
-	//if ok {
-	//	sStacktrace = raven.GetOrNewStacktrace(sError, skipFramesCount, contextLineCount, inAppPaths)
-	//} else {
-	//	sStacktrace = raven.NewStacktrace(skipFramesCount, contextLineCount, inAppPaths)
-	//}
-	//sStacktrace = raven.NewStacktrace(skipFramesCount, contextLineCount, inAppPaths)
-	//sException := raven.NewException(sError, sStacktrace)
-	//spew.Dump(sStacktrace)
+
 	data["stack"] = string(debug.Stack())
-	data["raven_http"] = raven.NewHttp(ctx.Request)
-	data["http_request"] = ctx.Request
-	
-	select {
-	case sentryChannel <- data:
-	
-	case <-time.After(time.Millisecond * SENTRY_CHANNEL_TIMEOUT):
-		metrics.GetSentryChannelTimeoutCounter().Inc()
-		Warn("[sentry] push timeout")
+	if ctx != nil && ctx.Request != nil{
+		data["raven_http"] = raven.NewHttp(ctx.Request)
+		data["http_request"] = ctx.Request
 	}
-	
-}
 
-func CaptureTaskErrorToSentry(ctx go_context.Context, errMsg string) {
-	if !isEnableSentry() {
-		beegoMode := os.Getenv("BEEGO_RUNMODE")
-		if beegoMode == "prod" {
-			Warn("Sentry is not enabled under prod mode, Please enable it!!!!")
-		}
-		return
+	extraData := map[string]interface{}{}
+	switch len(extraDatas) {
+	case 1:
+		extraData = extraDatas[0]
 	}
-	
-	data := make(map[string]interface{})
-	data["err_msg"] = errMsg
-	data["service_name"] = AppConfig.String("appname")
-	
-	data["stack"] = string(debug.Stack())
-	
+
+	if bErr, ok := err.(IBusinessError); ok {
+		extraData["details"] = bErr.ErrorMessage()
+	}
+
+	data["extra"] = extraData
+
 	select {
 	case sentryChannel <- data:
-	
+
 	case <-time.After(time.Millisecond * SENTRY_CHANNEL_TIMEOUT):
 		metrics.GetSentryChannelTimeoutCounter().Inc()
 		Warn("[sentry] push timeout")
 	}
 }
 
-func PushErrorToSentry(errMsg string, req *http.Request) {
-	if !isEnableSentry() {
-		return
-	}
-	
-	data := make(map[string]interface{})
-	data["err_msg"] = errMsg
-	data["service_name"] = AppConfig.String("appname")
-	
-	stack := string(debug.Stack())
-	data["stack"] = stack
-	if req != nil {
-		data["raven_http"] = raven.NewHttp(req)
-		data["http_request"] = req
-	}
-	select {
-	case sentryChannel <- data:
-	
-	case <-time.After(time.Millisecond * SENTRY_CHANNEL_TIMEOUT):
-		metrics.GetSentryChannelTimeoutCounter().Inc()
-		Warn("[sentry] push timeout")
-	}
-}
-
-func PushErrorWithExtraDataToSentry(errMsg string, extra map[string]interface{}, req *http.Request) {
-	if !isEnableSentry() {
-		return
-	}
-	
-	data := make(map[string]interface{})
-	data["err_msg"] = errMsg
-	data["service_name"] = AppConfig.String("appname")
-	
-	//stack := string(debug.Stack())
-	data["stack"] = "ignore"
-	data["extra"] = extra
-	if req != nil {
-		data["raven_http"] = raven.NewHttp(req)
-		data["http_request"] = req
-	}
-	select {
-	case sentryChannel <- data:
-	
-	case <-time.After(time.Millisecond * SENTRY_CHANNEL_TIMEOUT):
-		metrics.GetSentryChannelTimeoutCounter().Inc()
-		Warn("[sentry] push timeout")
-	}
-}
-
-func sendSentryPacketV1(data map[string]interface{}) {
-	var packet *raven.Packet
-	errMsg := data["err_msg"].(string)
-	packet = raven.NewPacket(errMsg)
-	
-	stack := data["stack"].(string)
-	packet.Extra = map[string]interface{}{
-		"stacktrace": stack,
-	}
-	
-	tags := map[string]string{
-		"service_name": data["service_name"].(string),
-	}
-	raven.Capture(packet, tags)
-	Info("push v1 data to sentry success")
-}
-
-func sendSentryPacketV2(data map[string]interface{}) {
+func sendSentryPacket(data map[string]interface{}) {
 	var packet *raven.Packet
 	errMsg := data["err_msg"].(string)
 	
@@ -212,7 +119,7 @@ func runSentryWorker(ch chan map[string]interface{}) {
 		data := <-sentryChannel
 		metrics.GetSentryChannelUnreadGuage().Set(float64(len(sentryChannel)))
 		metrics.GetSentryChannelErrorCounter().Inc()
-		sendSentryPacketV2(data)
+		sendSentryPacket(data)
 	}
 }
 

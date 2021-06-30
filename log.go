@@ -15,10 +15,9 @@
 package beego
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
-	
+
 	"github.com/kfchen81/beego/logs"
 )
 
@@ -71,25 +70,15 @@ func Critical(v ...interface{}) {
 func Error(v ...interface{}) {
 	format := generateFmtStr(len(v))
 	logs.Error(format, v...)
-	
-	//vanilla: push to sentry
-	{
-		
-		msg := fmt.Sprintf(format, v...)
-		PushErrorToSentry(msg, nil)
+
+	if len(v) > 0{
+		CaptureErrorToSentry(nil, v[0])
 	}
 }
 
 func HError(req *http.Request, v ...interface{}) {
 	format := generateFmtStr(len(v))
 	logs.Error(format, v...)
-	
-	//vanilla: push to sentry
-	{
-		
-		msg := fmt.Sprintf(format, v...)
-		PushErrorToSentry(msg, req)
-	}
 }
 
 // Warning logs a message at warning level.

@@ -60,7 +60,7 @@ func (this *RestProxy) Get() {
 	ws, err := upgrader.Upgrade(this.Ctx.ResponseWriter, this.Ctx.Request, nil)
 	if err != nil {
 		metrics.GetRestwsErrorCounter().WithLabelValues("upgrade").Inc()
-		beego.HError(this.Ctx.Request, err)
+		beego.Error(err)
 		return
 	}
 

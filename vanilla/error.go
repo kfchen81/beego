@@ -13,6 +13,10 @@ func (this *BusinessError) Error() string {
 	return this.ErrCode
 }
 
+func (this *BusinessError) ErrorMessage() string{
+	return this.ErrMsg
+}
+
 func (this *BusinessError) IsPanicError() bool {
 	return this.Type == ERROR_TYPE_SYSTEM
 }

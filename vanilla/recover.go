@@ -4,14 +4,14 @@ import (
 	"bytes"
 	go_context "context"
 	"fmt"
+	"github.com/go-redsync/redsync"
 	"github.com/kfchen81/beego/context"
 	"github.com/kfchen81/beego/logs"
 	"github.com/kfchen81/beego/metrics"
 	"github.com/opentracing/opentracing-go"
-	"github.com/go-redsync/redsync"
 	"runtime"
 	"strings"
-	
+
 	"github.com/kfchen81/beego"
 	"github.com/kfchen81/beego/orm"
 )
@@ -41,15 +41,7 @@ func RecoverPanic(ctx *context.Context) {
 		}
 		
 		//记录到sentry
-		{
-			errMsg := ""
-			if be, ok := err.(*BusinessError); ok {
-				errMsg = fmt.Sprintf("%s - %s", be.ErrCode, be.ErrMsg)
-			} else {
-				errMsg = fmt.Sprint(err)
-			}
-			beego.CaptureErrorToSentry(ctx, errMsg)
-		}
+		beego.CaptureErrorToSentry(ctx, err)
 		
 		//记录panic counter
 		//1. 非BusinessError需要记录
@@ -131,19 +123,7 @@ func RecoverFromCronTaskPanic(ctx go_context.Context) {
 			o.Rollback()
 			beego.Warn("[ORM] rollback transaction for cron task")
 		}
-		
-		{
-			// 推送日志到sentry
-			errMsg := err.(error).Error()
-			if be, ok := err.(*BusinessError); ok{
-				errMsg = fmt.Sprintf("%s - %s", be.ErrCode, be.ErrMsg)
-			}
-			logs.Critical(errMsg)
-			beego.CaptureTaskErrorToSentry(ctx, errMsg)
-		}
-		
+		// 推送日志到sentry
+		beego.CaptureErrorToSentry(nil, err)
 	}
-}
-
-func init() {
 }

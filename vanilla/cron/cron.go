@@ -86,7 +86,7 @@ func fetchData(pi pipeInterface){
 				errMsg := err.(error).Error()
 				dingMsg := fmt.Sprintf("> goroutine from task(%s) dead \n\n 错误信息: %s \n\n", taskName, errMsg)
 				vanilla.NewDingBot().Use("xiuer").Error(dingMsg)
-				beego.CaptureTaskErrorToSentry(context.Background(), errMsg)
+				beego.CaptureErrorToSentry(nil, err)
 			}
 		}()
 		for{
