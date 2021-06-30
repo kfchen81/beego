@@ -36,7 +36,7 @@ func handleMessage(queue mns.AliMNSQueue, resp *mns.MessageReceiveResponse) {
 	defer func(){
 		if err := recover(); err!=nil{
 			errMsg := fmt.Sprintf("handle event '%v' panic: %v", event, err)
-			beego.PushErrorWithExtraDataToSentry(errMsg, map[string]interface{}{
+			beego.CaptureErrorToSentry(nil, errMsg, map[string]interface{}{
 				"message": data["Message"],
 			}, nil)
 			logs.Critical(err)

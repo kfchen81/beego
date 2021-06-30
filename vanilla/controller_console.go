@@ -34,9 +34,13 @@
 package vanilla
 
 import (
+	"embed"
 	"github.com/kfchen81/beego"
 	"sort"
 )
+
+//go:embed static
+var _ embed.FS
 
 type ConsoleController struct {
 	beego.Controller

@@ -472,3 +472,8 @@ func executeError(err *errorInfo, ctx *context.Context, code int) {
 		execController.Finish()
 	}
 }
+
+type IBusinessError interface {
+	Error() string
+	ErrorMessage() string
+}

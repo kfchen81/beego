@@ -3,11 +3,11 @@ package vanilla
 import (
 	"bytes"
 	"fmt"
+	"github.com/go-redsync/redsync"
 	"github.com/kfchen81/beego/context"
 	"github.com/kfchen81/beego/logs"
 	"github.com/kfchen81/beego/metrics"
 	"github.com/opentracing/opentracing-go"
-	"github.com/go-redsync/redsync"
 	"runtime"
 	"strings"
 
@@ -41,15 +41,7 @@ func WsRestRecoverPanic(err interface{}, ctx *context.Context, restReq RestReque
 		}
 
 		//记录到sentry
-		{
-			errMsg := ""
-			if be, ok := err.(*BusinessError); ok {
-				errMsg = fmt.Sprintf("%s - %s", be.ErrCode, be.ErrMsg)
-			} else {
-				errMsg = fmt.Sprint(err)
-			}
-			beego.CaptureErrorToSentry(ctx, errMsg)
-		}
+		beego.CaptureErrorToSentry(ctx, err)
 
 		//记录panic counter
 		//1. 非BusinessError需要记录
