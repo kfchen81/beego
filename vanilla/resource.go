@@ -273,6 +273,9 @@ func (this *Resource) request(method string, service string, resource string, da
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
 	req.Header.Set("AUTHORIZATION", jwtToken)
+	if service == "dataware" {
+		req.Header.Set("SKIPVT", "skip")
+	}
 	modeIf := this.Ctx.Value(REQUEST_MODE_CTX_KEY)
 	if modeIf != nil {
 		req.Header.Set(REQUEST_HEADER_FORMAT, strings.ToUpper(modeIf.(string)))
