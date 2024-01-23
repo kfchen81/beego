@@ -6,53 +6,56 @@ import (
 	ali_mns "github.com/kfchen81/beego/vanilla/aliyun/mns"
 )
 
-type mnsConf struct{
-	endpoint string
-	accessId string
+type mnsConf struct {
+	endpoint  string
+	accessId  string
 	accessKey string
-	topic string
+	topic     string
 }
 
 var conf *mnsConf
 
-type mnsEngine struct{
+type mnsEngine struct {
 	engineType string
 }
 
-func newMnsEngine() *mnsEngine{
+func newMnsEngine() *mnsEngine {
 	eg := new(mnsEngine)
 	eg.engineType = "mns"
 	return eg
 }
 
-func (this *mnsEngine) getMnsClient() ali_mns.MNSClient{
+func (this *mnsEngine) getMnsClient() ali_mns.MNSClient {
 	return ali_mns.NewAliMNSClient(conf.endpoint, conf.accessId, conf.accessKey)
 }
 
-func (this *mnsEngine) getFormattedMessage(data map[string]interface{}, tag string) ali_mns.MessagePublishRequest{
+func (this *mnsEngine) getFormattedMessage(data map[string]interface{}, tag string) ali_mns.MessagePublishRequest {
 	dataStr, _ := json.Marshal(data)
 	return ali_mns.MessagePublishRequest{
-		MessageBody: string(dataStr),
-		MessageTag: tag,
+		MessageBody:       string(dataStr),
+		MessageTag:        tag,
 		MessageAttributes: nil,
 	}
 }
 
-func (this *mnsEngine) Send(data map[string]interface{}, tag string){
+func (this *mnsEngine) Send(data map[string]interface{}, tag string) {
 	client := this.getMnsClient()
 	topicName := conf.topic
 	topic := ali_mns.NewMNSTopic(topicName, client)
 
 	_, err := topic.PublishMessage(this.getFormattedMessage(data, tag))
-	if err != nil{
+	if err != nil {
 		beego.Error(err)
 	}
-	
+
 }
 
-
-func init(){
-
+func init() {
+	disableVanillaMnsSupport := beego.AppConfig.DefaultBool("aliyun::DISABLE_VANILLA_MNS_SUPPORT", false)
+	if disableVanillaMnsSupport {
+		beego.Notice("[init] vanilla mns support is DISABLED!!")
+		return
+	}
 	eg := newMnsEngine()
 	registerEngine(eg.engineType, eg)
 
