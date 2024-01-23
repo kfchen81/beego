@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build go1.8
 // +build go1.8
 
 // Package orm provide ORM for MySQL/PostgreSQL/sqlite
@@ -58,6 +59,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/kfchen81/beego/metrics"
 	"github.com/opentracing/opentracing-go"
 	"os"
 	"reflect"
@@ -95,11 +97,31 @@ type orm struct {
 	alias *alias
 	db    dbQuerier
 	isTx  bool
-	span opentracing.Span
-	data map[string]string
+	span  opentracing.Span
+	data  map[string]string
 }
 
 var _ Ormer = new(orm)
+
+func (o *orm) recordMetrics(dbMethod string, table string) {
+	localResource := o.GetData("SOURCE_RESOURCE")
+	localMethod := o.GetData("SOURCE_METHOD")
+
+	if _ENABLE_DB_ACCESS_TRACE {
+		dbType := o.alias.Name
+		metrics.GetDBTableAccessCounter().WithLabelValues(localMethod, localResource, dbType, dbMethod, table).Inc()
+	}
+
+	if _ENABLE_SQL_RESOURCE_COMMENT {
+		switch o.db.(type) {
+		case *dbQueryTracable:
+			comment := fmt.Sprintf("/* %s:%s */", localMethod, localResource)
+			o.db.(*dbQueryTracable).SetComment(comment)
+		default:
+
+		}
+	}
+}
 
 // get model info and model reflect value
 func (o *orm) getMiInd(md interface{}, needPtr bool) (mi *modelInfo, ind reflect.Value) {
@@ -163,6 +185,8 @@ func (o *orm) ReadOrCreate(md interface{}, col1 string, cols ...string) (bool, i
 // insert model data to database
 func (o *orm) Insert(md interface{}) (int64, error) {
 	mi, ind := o.getMiInd(md, true)
+
+	o.recordMetrics("INSERT", mi.table)
 	id, err := o.alias.DbBaser.Insert(o.db, mi, ind, o.alias.TZ)
 	if err != nil {
 		return id, err
@@ -272,8 +296,9 @@ func (o *orm) QueryM2M(md interface{}, name string) QueryM2Mer {
 // args are limit, offset int and order string.
 //
 // example:
-// 	orm.LoadRelated(post,"Tags")
-// 	for _,tag := range post.Tags{...}
+//
+//	orm.LoadRelated(post,"Tags")
+//	for _,tag := range post.Tags{...}
 //
 // make sure the relation is defined in model struct tags.
 func (o *orm) LoadRelated(md interface{}, name string, args ...interface{}) (int64, error) {
@@ -340,9 +365,9 @@ func (o *orm) LoadRelated(md interface{}, name string, args ...interface{}) (int
 // return a QuerySeter for related models to md model.
 // it can do all, update, delete in QuerySeter.
 // example:
-// 	qs := orm.QueryRelated(post,"Tag")
-//  qs.All(&[]*Tag{})
 //
+//		qs := orm.QueryRelated(post,"Tag")
+//	 qs.All(&[]*Tag{})
 func (o *orm) QueryRelated(md interface{}, name string) QuerySeter {
 	// is this api needed ?
 	_, _, _, qs := o.queryRelated(md, name)
@@ -564,7 +589,7 @@ func NewOrm() Ormer {
 
 func NewOrmWithSpan(span opentracing.Span) Ormer {
 	BootStrap() // execute only once
-	
+
 	o := new(orm)
 	o.data = make(map[string]string)
 	o.span = span

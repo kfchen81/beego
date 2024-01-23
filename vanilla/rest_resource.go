@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	
+
 	"github.com/kfchen81/beego"
-	
+
 	"encoding/json"
 	"github.com/bitly/go-simplejson"
 	"github.com/go-redsync/redsync"
@@ -34,17 +34,19 @@ type RestResourceInterface interface {
 	GetLockOption() *LockOption
 }
 
+type AfterCommitCallbackFunc func()
+
 /*RestResource 扩展beego.Controller, 作为rest中各个资源的基类
  */
 type RestResource struct {
 	beego.Controller
 
-	Name2JSON      map[string]map[string]interface{}
-	Name2RAWJSON      map[string]*simplejson.Json
-	Name2JSONArray map[string][]interface{}
-	Filters        map[string]interface{}
+	Name2JSON           map[string]map[string]interface{}
+	Name2RAWJSON        map[string]*simplejson.Json
+	Name2JSONArray      map[string][]interface{}
+	Filters             map[string]interface{}
+	AfterCommitCallback AfterCommitCallbackFunc
 }
-
 
 // Init generates default values of controller operations.
 func (c *RestResource) Init(ctx *beego_context.Context, controllerName, actionName string, app interface{}) {
@@ -145,7 +147,7 @@ func (r *RestResource) GetLockKey() string {
 	return ""
 }
 
-func (r *RestResource) GetLockOption() *LockOption{
+func (r *RestResource) GetLockOption() *LockOption {
 	return nil
 }
 
@@ -175,7 +177,7 @@ func (r *RestResource) GetCorpToken() string {
 	}
 }
 
-//returnValidateParameterFailResponse 返回参数校验错误的response
+// returnValidateParameterFailResponse 返回参数校验错误的response
 func (r *RestResource) returnValidateParameterFailResponse(parameter string, paramType string, innerErrMsgs ...string) {
 	innerErrMsg := ""
 	if len(innerErrMsgs) > 0 {
@@ -192,7 +194,7 @@ func (r *RestResource) returnValidateParameterFailResponse(parameter string, par
 	r.ServeJSON()
 }
 
-func (r *RestResource) returnAcquireLockFailedResponse(lockKey string){
+func (r *RestResource) returnAcquireLockFailedResponse(lockKey string) {
 	r.Data["json"] = &Response{
 		500,
 		nil,
@@ -207,7 +209,7 @@ func (r *RestResource) returnAcquireLockFailedResponse(lockKey string){
 /*Prepare 实现beego.Controller的Prepare函数
  */
 func (r *RestResource) Prepare() {
-	
+
 	method := r.Ctx.Input.Method()
 	r.Name2JSON = make(map[string]map[string]interface{})
 	r.Name2RAWJSON = make(map[string]*simplejson.Json)
@@ -222,7 +224,7 @@ func (r *RestResource) Prepare() {
 			source = r.Input().Get("__source")
 		}
 		metrics.GetEndpointCallByServiceCounter().WithLabelValues(app.Resource(), method, source).Inc()
-		
+
 		// 记录local resource
 		{
 			v := r.Ctx.Input.GetData("bContext")
@@ -232,7 +234,7 @@ func (r *RestResource) Prepare() {
 				bCtx = context.WithValue(bCtx, "SOURCE_RESOURCE", app.Resource())
 				bCtx = context.WithValue(bCtx, "SOURCE_METHOD", method)
 				r.Ctx.Input.SetData("bContext", bCtx)
-				
+
 				o := bCtx.Value("orm")
 				switch o.(type) {
 				case orm.Ormer:
@@ -244,8 +246,7 @@ func (r *RestResource) Prepare() {
 				beego.Warn("no business context")
 			}
 		}
-		
-		
+
 		method2parameters := app.GetParameters()
 		if method2parameters != nil {
 			if parameters, ok := method2parameters[method]; ok {
@@ -351,7 +352,7 @@ func (r *RestResource) Prepare() {
 						switch op {
 						case "in", "range", "notin":
 							value := r.GetString(key)
-							if value != ""{
+							if value != "" {
 								js, err := simplejson.NewJson([]byte(value))
 								if err != nil {
 									r.returnValidateParameterFailResponse(key, "__f", err.Error())
@@ -375,13 +376,13 @@ func (r *RestResource) Prepare() {
 		defaultKey := fmt.Sprintf("rest_api_lock_%s_%s", app.Resource(), method)
 		customLockOption := app.GetLockOption()
 		needLock := false
-		if customLockOption != nil{
+		if customLockOption != nil {
 			lockOption = customLockOption
-			if lockOption.key == ""{
+			if lockOption.key == "" {
 				lockOption.key = defaultKey
 			}
 			needLock = true
-		}else{
+		} else {
 			lockKey := app.GetLockKey()
 			if lockKey == "" {
 				//do not lock
@@ -390,9 +391,9 @@ func (r *RestResource) Prepare() {
 				needLock = true
 			}
 		}
-		if needLock && lockOption != nil{
+		if needLock && lockOption != nil {
 			mutex, err := Lock.Lock(lockOption.key, lockOption)
-			if err != nil{
+			if err != nil {
 				r.returnAcquireLockFailedResponse(lockOption.key)
 			}
 			if mutex != nil {
@@ -426,6 +427,10 @@ func (r *RestResource) Finish() {
 					o.(orm.Ormer).Commit()
 					beego.Debug("[ORM] commit transaction")
 				}
+
+				if r.AfterCommitCallback != nil {
+					r.AfterCommitCallback()
+				}
 			}
 		}
 
@@ -435,7 +440,7 @@ func (r *RestResource) Finish() {
 			beego.Debug("[Tracing] finish span in Controller.Finish")
 			span.(opentracing.Span).Finish()
 		}
-		
+
 		//释放锁
 		//注意：锁的释放必须在数据库的事务提交之后进行
 		if mutex, ok := r.Ctx.Input.Data()["sessionRestMutex"]; ok {
@@ -447,7 +452,7 @@ func (r *RestResource) Finish() {
 	}
 }
 
-//GetJSONArray 与key对应的返回json array数据
+// GetJSONArray 与key对应的返回json array数据
 func (r *RestResource) GetJSONArray(key string) []interface{} {
 	if data, ok := r.Name2JSONArray[key]; ok {
 		return data
@@ -486,7 +491,7 @@ func (r *RestResource) GetStringArray(key string) []string {
 	}
 }
 
-//GetJSONArray 与key对应的返回json map数据
+// GetJSONArray 与key对应的返回json map数据
 func (r *RestResource) GetJSON(key string) map[string]interface{} {
 	if data, ok := r.Name2JSON[key]; ok {
 		return data
@@ -495,7 +500,7 @@ func (r *RestResource) GetJSON(key string) map[string]interface{} {
 	}
 }
 
-//GetRawJSON 与key对应的返回json数据
+// GetRawJSON 与key对应的返回json数据
 func (r *RestResource) GetRawJSON(key string) *simplejson.Json {
 	if data, ok := r.Name2RAWJSON[key]; ok {
 		return data
@@ -513,7 +518,7 @@ func (r *RestResource) GetFillOptions(key string) FillOption {
 	} else {
 		return fillOption
 	}
-	
+
 	return fillOption
 }
 
@@ -524,6 +529,12 @@ func (r *RestResource) GetFilters() map[string]interface{} {
 
 /*ReturnJSON 返回json response*/
 func (r *RestResource) ReturnJSON(response *Response) {
+	r.Data["json"] = response
+	r.ServeJSON()
+}
+
+func (r *RestResource) ReturnJSONWithCallback(response *Response, callback AfterCommitCallbackFunc) {
+	r.AfterCommitCallback = callback
 	r.Data["json"] = response
 	r.ServeJSON()
 }
