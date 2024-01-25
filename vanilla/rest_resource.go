@@ -36,6 +36,15 @@ type RestResourceInterface interface {
 
 type AfterCommitCallbackFunc func()
 
+// before commit callback机制
+type BeforeCommitCallbackFunc func(ctx context.Context)
+
+var gBeforeCommitCallback BeforeCommitCallbackFunc = nil
+
+func SetBeforeCommitCallback(callback BeforeCommitCallbackFunc) {
+	gBeforeCommitCallback = callback
+}
+
 /*RestResource 扩展beego.Controller, 作为rest中各个资源的基类
  */
 type RestResource struct {
@@ -424,6 +433,10 @@ func (r *RestResource) Finish() {
 		if o != nil {
 			if app, ok := r.AppController.(RestResourceInterface); ok {
 				if !app.DisableTx() {
+					if gBeforeCommitCallback != nil {
+						gBeforeCommitCallback(bCtx)
+					}
+
 					o.(orm.Ormer).Commit()
 					beego.Debug("[ORM] commit transaction")
 				}
