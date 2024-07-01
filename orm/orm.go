@@ -63,6 +63,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -546,6 +547,22 @@ func (o *orm) Rollback() error {
 
 // return a raw query seter for raw sql string.
 func (o *orm) Raw(query string, args ...interface{}) RawSeter {
+	localResource := o.GetData("SOURCE_RESOURCE")
+	localMethod := o.GetData("SOURCE_METHOD")
+	if _ENABLE_DB_ACCESS_TRACE {
+		dbType := o.alias.Name
+		dbMethod := "RAW"
+		items := strings.Split(query, " ")
+		if len(items) > 0 {
+			dbMethod = strings.ToUpper(items[0])
+		}
+		metrics.GetDBTableAccessCounter().WithLabelValues(localMethod, localResource, dbType, dbMethod, "__raw_table__").Inc()
+	}
+
+	if _ENABLE_SQL_RESOURCE_COMMENT {
+		query = fmt.Sprintf("/* %s:%s */ %s", localMethod, localResource, query)
+	}
+
 	return newRawSet(o, query, args)
 }
 

@@ -301,6 +301,11 @@ type QuerySeter interface {
 	RowsToStruct(ptrStruct interface{}, keyCol, valueCol string) (int64, error)
 
 	UseIndex(index string) QuerySeter
+	UseTableShard(shard string) QuerySeter
+	RestoreTable() QuerySeter
+	GetTableShards() []string
+	UseShardModelInfo() QuerySeter
+	GetModelInfoTableName() string
 }
 
 // QueryM2Mer model to model query struct

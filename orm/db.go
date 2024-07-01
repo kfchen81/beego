@@ -1185,7 +1185,10 @@ func (d *dbBase) ReadBatch(q dbQuerier, qs *querySet, mi *modelInfo, cond *Condi
 					if ind.Len() != 0 {
 						// if container is not empty
 						// create a new one
-						slice = reflect.New(ind.Type()).Elem()
+						if !mi.shard {
+							// 如果是shard的读取，则不创建新的slice
+							slice = reflect.New(ind.Type()).Elem()
+						}
 					}
 				}
 

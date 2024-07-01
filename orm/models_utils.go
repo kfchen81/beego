@@ -51,6 +51,27 @@ func getFullName(typ reflect.Type) string {
 	return typ.PkgPath() + "." + typ.Name()
 }
 
+func getTableShards(val reflect.Value) []string {
+	if fun := val.MethodByName("TableShards"); fun.IsValid() {
+		vals := fun.Call([]reflect.Value{})
+		// has return and the first val is string
+		if len(vals) > 0 && vals[0].Kind() == reflect.String {
+			items := strings.Split(vals[0].String(), ";")
+			shards := make([]string, 0)
+			for _, item := range items {
+				item = strings.TrimSpace(item)
+				if item != "" {
+					shards = append(shards, item)
+				}
+			}
+
+			return shards
+		}
+	}
+
+	return make([]string, 0)
+}
+
 // getTableName get struct table name.
 // If the struct implement the TableName, then get the result as tablename
 // else use the struct name which will apply snakeString.

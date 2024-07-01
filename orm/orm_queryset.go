@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/kfchen81/beego"
+	"github.com/kfchen81/beego/logs"
 	"github.com/kfchen81/beego/metrics"
 )
 
@@ -273,7 +274,9 @@ func (o *querySet) PrepareInsert() (Inserter, error) {
 // cols means the columns when querying.
 func (o *querySet) All(container interface{}, cols ...string) (int64, error) {
 	o.recordMetrics("SELECT")
-	return o.orm.alias.DbBaser.ReadBatch(o.orm.db, o, o.mi, o.cond, container, o.orm.alias.TZ, cols)
+	cnt, err := o.orm.alias.DbBaser.ReadBatch(o.orm.db, o, o.mi, o.cond, container, o.orm.alias.TZ, cols)
+
+	return cnt, err
 }
 
 // query one row data and map to containers.
@@ -299,18 +302,21 @@ func (o *querySet) One(container interface{}, cols ...string) error {
 // expres means condition expression.
 // it converts data to []map[column]value.
 func (o *querySet) Values(results *[]Params, exprs ...string) (int64, error) {
+	o.recordMetrics("SELECT")
 	return o.orm.alias.DbBaser.ReadValues(o.orm.db, o, o.mi, o.cond, exprs, results, o.orm.alias.TZ)
 }
 
 // query all data and map to [][]interface
 // it converts data to [][column_index]value
 func (o *querySet) ValuesList(results *[]ParamsList, exprs ...string) (int64, error) {
+	o.recordMetrics("SELECT")
 	return o.orm.alias.DbBaser.ReadValues(o.orm.db, o, o.mi, o.cond, exprs, results, o.orm.alias.TZ)
 }
 
 // query all data and map to []interface.
 // it's designed for one row record set, auto change to []value, not [][column]value.
 func (o *querySet) ValuesFlat(result *ParamsList, expr string) (int64, error) {
+	o.recordMetrics("SELECT")
 	return o.orm.alias.DbBaser.ReadValues(o.orm.db, o, o.mi, o.cond, []string{expr}, result, o.orm.alias.TZ)
 }
 
@@ -347,6 +353,49 @@ func (o *querySet) RowsToStruct(ptrStruct interface{}, keyCol, valueCol string) 
 func (o querySet) UseIndex(index string) QuerySeter {
 	o.index = index
 	return &o
+}
+
+func (o querySet) UseTableShard(suffix string) QuerySeter {
+	o.mi.table = fmt.Sprintf("%s_%s", o.mi.origTable, suffix)
+	o.mi.shard = true
+	logs.Notice("[merge_orm] switch table_shard: ", o.mi.table)
+	return &o
+}
+
+func (o querySet) RestoreTable() QuerySeter {
+	o.mi.table = o.mi.origTable
+	o.mi.shard = false
+	logs.Notice("[merge_orm] restore table: ", o.mi.table)
+	return &o
+}
+
+func (o querySet) UseShardModelInfo() QuerySeter {
+	newMi := modelInfo{
+		pkg:         o.mi.pkg,
+		name:        o.mi.name,
+		fullName:    o.mi.fullName,
+		table:       o.mi.table,
+		origTable:   o.mi.origTable,
+		tableShards: o.mi.tableShards,
+		model:       o.mi.model,
+		fields:      o.mi.fields,
+		manual:      o.mi.manual,
+		addrField:   o.mi.addrField,
+		uniques:     o.mi.uniques,
+		isThrough:   o.mi.isThrough,
+		shard:       o.mi.shard,
+	}
+	o.mi = &newMi
+	logs.Notice("[merge_orm] create new modelInfo as shard modelInfo")
+	return &o
+}
+
+func (o querySet) GetTableShards() []string {
+	return o.mi.tableShards
+}
+
+func (o querySet) GetModelInfoTableName() string {
+	return o.mi.table
 }
 
 // set context to QuerySeter.

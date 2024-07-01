@@ -22,16 +22,19 @@ import (
 
 // single model info
 type modelInfo struct {
-	pkg       string
-	name      string
-	fullName  string
-	table     string
-	model     interface{}
-	fields    *fields
-	manual    bool
-	addrField reflect.Value //store the original struct value
-	uniques   []string
-	isThrough bool
+	pkg         string
+	name        string
+	fullName    string
+	table       string
+	origTable   string
+	tableShards []string
+	model       interface{}
+	fields      *fields
+	manual      bool
+	shard       bool
+	addrField   reflect.Value //store the original struct value
+	uniques     []string
+	isThrough   bool
 }
 
 // new model info

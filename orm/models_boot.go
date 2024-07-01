@@ -39,6 +39,7 @@ func registerModel(PrefixOrSuffix string, model interface{}, isPrefix bool) {
 	}
 
 	table := getTableName(val)
+	tableShards := getTableShards(val)
 
 	if PrefixOrSuffix != "" {
 		if isPrefix {
@@ -82,6 +83,8 @@ func registerModel(PrefixOrSuffix string, model interface{}, isPrefix bool) {
 	}
 
 	mi.table = table
+	mi.origTable = table
+	mi.tableShards = tableShards
 	mi.pkg = typ.PkgPath()
 	mi.model = model
 	mi.manual = true
