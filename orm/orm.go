@@ -59,11 +59,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/kfchen81/beego/logs"
 	"github.com/kfchen81/beego/metrics"
 	"github.com/opentracing/opentracing-go"
 	"os"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -88,6 +90,11 @@ var (
 	ErrNotImplement  = errors.New("have not implement")
 )
 
+var (
+	TxidBase    string = ""
+	TxidCounter uint64 = 1
+)
+
 // Params stores the Params
 type Params map[string]interface{}
 
@@ -100,6 +107,7 @@ type orm struct {
 	isTx  bool
 	span  opentracing.Span
 	data  map[string]string
+	txid  string
 }
 
 var _ Ormer = new(orm)
@@ -114,9 +122,10 @@ func (o *orm) recordMetrics(dbMethod string, table string) {
 	}
 
 	if _ENABLE_SQL_RESOURCE_COMMENT {
+		txid := o.txid
 		switch o.db.(type) {
 		case *dbQueryTracable:
-			comment := fmt.Sprintf("/* %s:%s */", localMethod, localResource)
+			comment := fmt.Sprintf("/* %s:%s:%s */", localMethod, localResource, txid)
 			o.db.(*dbQueryTracable).SetComment(comment)
 		default:
 
@@ -560,7 +569,8 @@ func (o *orm) Raw(query string, args ...interface{}) RawSeter {
 	}
 
 	if _ENABLE_SQL_RESOURCE_COMMENT {
-		query = fmt.Sprintf("/* %s:%s */ %s", localMethod, localResource, query)
+		txid := o.txid
+		query = fmt.Sprintf("/* %s:%s:%s */ %s", localMethod, localResource, txid, query)
 	}
 
 	return newRawSet(o, query, args)
@@ -583,6 +593,10 @@ func (o *orm) GetData(key string) string {
 	}
 }
 
+func (o *orm) GetTxid() string {
+	return o.txid
+}
+
 func (o *orm) CopyDataTo(otherO Ormer) {
 	if o.data != nil {
 		for key, value := range o.data {
@@ -591,12 +605,19 @@ func (o *orm) CopyDataTo(otherO Ormer) {
 	}
 }
 
+func GetTxid() string {
+	atomic.AddUint64(&TxidCounter, 1)
+	counter := atomic.LoadUint64(&TxidCounter)
+	return fmt.Sprintf("%s%d", TxidBase, counter)
+}
+
 // NewOrm create new orm
 func NewOrm() Ormer {
 	BootStrap() // execute only once
 
 	o := new(orm)
 	o.data = make(map[string]string)
+	o.txid = GetTxid()
 	err := o.Using("default")
 	if err != nil {
 		panic(err)
@@ -609,6 +630,7 @@ func NewOrmWithSpan(span opentracing.Span) Ormer {
 
 	o := new(orm)
 	o.data = make(map[string]string)
+	o.txid = GetTxid()
 	o.span = span
 	err := o.Using("default")
 	if err != nil {
@@ -637,6 +659,7 @@ func NewOrmWithDB(driverName, aliasName string, db *sql.DB) (Ormer, error) {
 
 	o := new(orm)
 	o.data = make(map[string]string)
+	o.txid = GetTxid()
 	o.alias = al
 
 	if Debug {
@@ -646,4 +669,17 @@ func NewOrmWithDB(driverName, aliasName string, db *sql.DB) (Ormer, error) {
 	}
 
 	return o, nil
+}
+
+func init() {
+	//初始化时获取
+	{
+		//get hostname
+		hostname, _ := os.Hostname()
+		items := strings.Split(hostname, "-")
+		if len(items) > 0 {
+			TxidBase = items[len(items)-1]
+		}
+		logs.Info("[init] orm TxidBase: ", TxidBase)
+	}
 }

@@ -225,9 +225,10 @@ func (o querySet) recordMetrics(dbMethod string) {
 	}
 
 	if _ENABLE_SQL_RESOURCE_COMMENT {
+		txid := o.orm.txid
 		switch o.orm.db.(type) {
 		case *dbQueryTracable:
-			comment := fmt.Sprintf("/* %s:%s */", localMethod, localResource)
+			comment := fmt.Sprintf("/* %s:%s:%s */", localMethod, localResource, txid)
 			o.orm.db.(*dbQueryTracable).SetComment(comment)
 		default:
 
