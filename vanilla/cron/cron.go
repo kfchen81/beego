@@ -42,6 +42,11 @@ func newTaskCtx(task taskInterface) *TaskContext {
 	ctx = context.WithValue(ctx, "user_id", userId)
 	ctx = context.WithValue(ctx, "uid", authUserId)
 	ctx = context.WithValue(ctx, "SOURCE_RESOURCE", taskName)
+
+	if gCronTaskContextCallback != nil {
+		ctx = gCronTaskContextCallback(ctx)
+	}
+
 	resource.Ctx = ctx
 	inst.Init(ctx, o, resource)
 	return inst
@@ -69,6 +74,11 @@ func taskWrapper(task taskInterface) toolbox.TaskFunc {
 		}
 		dur := time.Since(startTime)
 		beego.Info(fmt.Sprintf("[%s] done, cost %g s", taskName, dur.Seconds()))
+
+		if fnErr == nil && gCronTaskFinishCallback != nil {
+			gCronTaskFinishCallback(taskCtx.ctx)
+		}
+
 		return fnErr
 	}
 }
@@ -96,6 +106,10 @@ func fetchData(pi pipeInterface) {
 				pi.RunConsumer(data, taskCtx)
 				dur := time.Since(startTime)
 				beego.Info(fmt.Sprintf("[%s] consume done, cost %g s !", taskName, dur.Seconds()))
+
+				if gCronTaskFinishCallback != nil {
+					gCronTaskFinishCallback(taskCtx.ctx)
+				}
 			}
 		}
 	}()
@@ -189,4 +203,18 @@ func StartCronTasks() {
 
 func StopCronTasks() {
 	toolbox.StopTask()
+}
+
+// CronTask Callback
+type CronTaskContextCallback func(ctx context.Context) context.Context
+
+var gCronTaskContextCallback CronTaskContextCallback = nil
+
+type CronTaskFinishCallback func(ctx context.Context)
+
+var gCronTaskFinishCallback CronTaskFinishCallback = nil
+
+func SetCronTaskCallback(contextCallback CronTaskContextCallback, finishCallback CronTaskFinishCallback) {
+	gCronTaskContextCallback = contextCallback
+	gCronTaskFinishCallback = finishCallback
 }
