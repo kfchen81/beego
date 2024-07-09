@@ -27,6 +27,7 @@ type RestResourceInterface interface {
 	EnableHTMLResource() bool
 	IsForDevTest() bool
 	DisableTx() bool
+	PrepareOrm(o orm.Ormer)
 	GetParameters() map[string][]string
 	GetBusinessContext() context.Context
 	SetBeegoController(ctx *beego_context.Context, data map[interface{}]interface{})
@@ -148,6 +149,11 @@ func (r *RestResource) DisableTx() bool {
 	} else {
 		return false
 	}
+}
+
+/* PrepareOrm 准备orm
+ */
+func (r *RestResource) PrepareOrm(o orm.Ormer) {
 }
 
 /*GetLockKey 获取锁的key
@@ -416,6 +422,7 @@ func (r *RestResource) Prepare() {
 		if !r.Ctx.ResponseWriter.Started {
 			if o != nil {
 				if app, ok := r.AppController.(RestResourceInterface); ok {
+					app.PrepareOrm(o)
 					if !app.DisableTx() {
 						o.Begin()
 						beego.Debug("[ORM] start transaction")
