@@ -62,6 +62,6 @@ func init() {
 	conf = new(mnsConf)
 	conf.accessId = beego.AppConfig.String("aliyun::MNS_ACCESS_ID")
 	conf.accessKey = beego.AppConfig.String("aliyun::MNS_ACCESS_KEY")
-	conf.endpoint = beego.AppConfig.String("aliyun::MNS_ENDPOINT")
+	conf.endpoint = beego.AppConfig.String("aliyun::BJ_MNS_ENDPOINT")
 	conf.topic = beego.AppConfig.String("aliyun::MNS_TOPIC")
 }
