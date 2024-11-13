@@ -4,14 +4,14 @@ import (
 	"bytes"
 	go_context "context"
 	"fmt"
+	"github.com/go-redsync/redsync"
 	"github.com/kfchen81/beego/context"
 	"github.com/kfchen81/beego/logs"
 	"github.com/kfchen81/beego/metrics"
 	"github.com/opentracing/opentracing-go"
-	"github.com/go-redsync/redsync"
 	"runtime"
 	"strings"
-	
+
 	"github.com/kfchen81/beego"
 	"github.com/kfchen81/beego/orm"
 )
@@ -39,7 +39,7 @@ func RecoverPanic(ctx *context.Context) {
 				mutex.(*redsync.Mutex).Unlock()
 			}
 		}
-		
+
 		//记录到sentry
 		{
 			errMsg := ""
@@ -50,7 +50,7 @@ func RecoverPanic(ctx *context.Context) {
 			}
 			beego.CaptureErrorToSentry(ctx, errMsg)
 		}
-		
+
 		//记录panic counter
 		//1. 非BusinessError需要记录
 		//2. IsPanicError为true的BusinessError需要记录
@@ -113,7 +113,7 @@ func RecoverPanic(ctx *context.Context) {
 				"data": Map{
 					"endpoint": endpoint,
 				},
-				"errCode":     "system:exception",
+				"errCode":     fmt.Sprintf("%s", err),
 				"errMsg":      fmt.Sprintf("%s", err),
 				"innerErrMsg": "",
 			}
@@ -125,23 +125,23 @@ func RecoverPanic(ctx *context.Context) {
 // RecoverFromCronTaskPanic crontask的recover
 func RecoverFromCronTaskPanic(ctx go_context.Context) {
 	o := GetOrmFromContext(ctx)
-	if err := recover(); err!=nil{
+	if err := recover(); err != nil {
 		beego.Info("recover from cron task panic...")
-		if o != nil{
+		if o != nil {
 			o.Rollback()
 			beego.Warn("[ORM] rollback transaction for cron task")
 		}
-		
+
 		{
 			// 推送日志到sentry
 			errMsg := err.(error).Error()
-			if be, ok := err.(*BusinessError); ok{
+			if be, ok := err.(*BusinessError); ok {
 				errMsg = fmt.Sprintf("%s - %s", be.ErrCode, be.ErrMsg)
 			}
 			logs.Critical(errMsg)
 			beego.CaptureTaskErrorToSentry(ctx, errMsg)
 		}
-		
+
 	}
 }
 

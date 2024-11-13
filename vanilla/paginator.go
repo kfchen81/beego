@@ -3,11 +3,10 @@ package vanilla
 import (
 	"reflect"
 
-	//	"github.com/kfchen81/beego"
-	"github.com/kfchen81/beego/orm"
-	"github.com/bitly/go-simplejson"
-	"strconv"
 	"encoding/json"
+	"github.com/bitly/go-simplejson"
+	"github.com/kfchen81/beego/orm"
+	"strconv"
 )
 
 //INextPageInfo
@@ -54,23 +53,23 @@ func NewPaginateResultFromData(js *simplejson.Json) INextPageInfo {
 		pageValue, _ := strconv.Atoi(page.(json.Number).String())
 		displayPages = append(displayPages, pageValue)
 	}
-	
+
 	prev, _ := js.Get("prev").Int()
 	next, _ := js.Get("next").Int()
 	curPage, _ := js.Get("cur_page").Int()
 	maxPage, _ := js.Get("max_page").Int()
 	totalCount, _ := js.Get("total_count").Int64()
 	return &PaginateResult{
-		HasHead: js.Get("has_head").MustBool(),
-		HasTail: js.Get("has_tail").MustBool(),
-		HasPrev: js.Get("has_prev").MustBool(),
-		HasNext: js.Get("has_next").MustBool(),
-		Prev: prev,
-		Next: next,
-		TotalCount: totalCount,
-		CurPage: curPage,
+		HasHead:      js.Get("has_head").MustBool(),
+		HasTail:      js.Get("has_tail").MustBool(),
+		HasPrev:      js.Get("has_prev").MustBool(),
+		HasNext:      js.Get("has_next").MustBool(),
+		Prev:         prev,
+		Next:         next,
+		TotalCount:   totalCount,
+		CurPage:      curPage,
 		DisplayPages: displayPages,
-		MaxPage: maxPage,
+		MaxPage:      maxPage,
 	}
 }
 
@@ -105,7 +104,7 @@ func _range(start int, end int) []int {
 //Paginate 进行分页
 func doPaginate(itemCount int64, curPage int, itemCountPerPage int) INextPageInfo {
 	paginateResult := PaginateResult{}
-	
+
 	paginateResult.TotalCount = itemCount
 	total := getTotalPageCount(itemCount, itemCountPerPage)
 
@@ -234,13 +233,16 @@ func MockPaginate(itemCount int64, page *PageInfo) INextPageInfo {
 	return nextPageInfo
 }
 
-//MockPaginate 模拟进行分页
+//MockPaginateV2 模拟进行分页
 func MockPaginateV2(itemCount int, page *PageInfo) (INextPageInfo, int, int) {
 	nextPageInfo := doPaginate(int64(itemCount), page.Page, page.CountPerPage)
 	start := (page.Page - 1) * page.CountPerPage
-	end := page.Page * page.CountPerPage - 1
-	if end >= itemCount{
+	end := page.Page*page.CountPerPage - 1
+	if end >= itemCount {
 		end = itemCount
+	}
+	if start >= end {
+		start = end
 	}
 	return nextPageInfo, start, end
 }
