@@ -102,12 +102,14 @@ type Params map[string]interface{}
 type ParamsList []interface{}
 
 type orm struct {
-	alias *alias
-	db    dbQuerier
-	isTx  bool
-	span  opentracing.Span
-	data  map[string]string
-	txid  string
+	alias            *alias
+	db               dbQuerier
+	isTx             bool
+	span             opentracing.Span
+	data             map[string]string
+	partnerSlave     Ormer
+	origPartnerSlave Ormer
+	txid             string
 }
 
 var _ Ormer = new(orm)
@@ -593,6 +595,13 @@ func (o *orm) GetData(key string) string {
 	}
 }
 
+func (o *orm) DumpDatas() {
+	logs.Notice(">>>>>>>>>>>>>>> DUMP orm(%s) data <<<<<<<<<<<<<<<", o.alias.Name)
+	for key, val := range o.data {
+		logs.Notice(fmt.Sprintf("%v -> %v", key, val))
+	}
+}
+
 func (o *orm) GetTxid() string {
 	return o.txid
 }
@@ -603,6 +612,23 @@ func (o *orm) CopyDataTo(otherO Ormer) {
 			otherO.SetData(key, value)
 		}
 	}
+}
+
+func (o *orm) SetPartnerSlave(slaveO Ormer) {
+	o.partnerSlave = slaveO
+	o.origPartnerSlave = slaveO
+}
+
+func (o *orm) EnablePartnerSlave() {
+	o.partnerSlave = o.origPartnerSlave
+}
+
+func (o *orm) DisablePartnerSlave() {
+	o.partnerSlave = nil
+}
+
+func (o *orm) GetPartnerSlave() Ormer {
+	return o.partnerSlave
 }
 
 func GetTxid() string {

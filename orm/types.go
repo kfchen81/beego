@@ -130,6 +130,11 @@ type Ormer interface {
 	Driver() Driver
 	SetData(key string, value string)
 	GetData(key string) string
+	DumpDatas()
+	SetPartnerSlave(slaveO Ormer)
+	GetPartnerSlave() Ormer
+	DisablePartnerSlave()
+	EnablePartnerSlave()
 	CopyDataTo(otherO Ormer)
 }
 

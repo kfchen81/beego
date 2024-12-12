@@ -217,10 +217,14 @@ func (o querySet) GetCond() *Condition {
 }
 
 func (o querySet) recordMetrics(dbMethod string) {
+	dbType := o.orm.alias.Name
+	o.recordMetricsWithDbType(dbMethod, dbType)
+}
+
+func (o querySet) recordMetricsWithDbType(dbMethod string, dbType string) {
 	localResource := o.orm.GetData("SOURCE_RESOURCE")
 	localMethod := o.orm.GetData("SOURCE_METHOD")
 	if _ENABLE_DB_ACCESS_TRACE {
-		dbType := o.orm.alias.Name
 		metrics.GetDBTableAccessCounter().WithLabelValues(localMethod, localResource, dbType, dbMethod, o.mi.table).Inc()
 	}
 
@@ -238,8 +242,16 @@ func (o querySet) recordMetrics(dbMethod string) {
 
 // return QuerySeter execution result number
 func (o *querySet) Count() (int64, error) {
-	o.recordMetrics("COUNT")
-	return o.orm.alias.DbBaser.Count(o.orm.db, o, o.mi, o.cond, o.orm.alias.TZ)
+	partnerSlave := o.orm.partnerSlave
+	if partnerSlave != nil {
+		slaveOrm := partnerSlave.(*orm)
+		o.recordMetricsWithDbType("COUNT", slaveOrm.alias.Name)
+		logs.Notice("[orm-25] use partner slave : ", slaveOrm.alias.Name)
+		return o.orm.alias.DbBaser.Count(slaveOrm.db, o, o.mi, o.cond, o.orm.alias.TZ)
+	} else {
+		o.recordMetrics("COUNT")
+		return o.orm.alias.DbBaser.Count(o.orm.db, o, o.mi, o.cond, o.orm.alias.TZ)
+	}
 }
 
 // check result empty or not after QuerySeter executed
@@ -274,18 +286,40 @@ func (o *querySet) PrepareInsert() (Inserter, error) {
 // query all data and map to containers.
 // cols means the columns when querying.
 func (o *querySet) All(container interface{}, cols ...string) (int64, error) {
-	o.recordMetrics("SELECT")
-	cnt, err := o.orm.alias.DbBaser.ReadBatch(o.orm.db, o, o.mi, o.cond, container, o.orm.alias.TZ, cols)
+	partnerSlave := o.orm.partnerSlave
+	if partnerSlave != nil {
+		slaveOrm := partnerSlave.(*orm)
+		o.recordMetricsWithDbType("SELECT", slaveOrm.alias.Name)
+		logs.Notice("[orm-25] use partner slave : ", slaveOrm.alias.Name)
+		cnt, err := o.orm.alias.DbBaser.ReadBatch(slaveOrm.db, o, o.mi, o.cond, container, o.orm.alias.TZ, cols)
 
-	return cnt, err
+		return cnt, err
+	} else {
+		o.recordMetrics("SELECT")
+		cnt, err := o.orm.alias.DbBaser.ReadBatch(o.orm.db, o, o.mi, o.cond, container, o.orm.alias.TZ, cols)
+
+		return cnt, err
+	}
 }
 
 // query one row data and map to containers.
 // cols means the columns when querying.
 func (o *querySet) One(container interface{}, cols ...string) error {
-	o.recordMetrics("SELECT")
 	o.limit = 1
-	num, err := o.orm.alias.DbBaser.ReadBatch(o.orm.db, o, o.mi, o.cond, container, o.orm.alias.TZ, cols)
+
+	var num int64 = 0
+	var err error
+	partnerSlave := o.orm.partnerSlave
+	if partnerSlave != nil {
+		slaveOrm := partnerSlave.(*orm)
+		o.recordMetricsWithDbType("SELECT", slaveOrm.alias.Name)
+		logs.Notice("[orm-25] use partner slave : ", slaveOrm.alias.Name)
+		num, err = o.orm.alias.DbBaser.ReadBatch(slaveOrm.db, o, o.mi, o.cond, container, o.orm.alias.TZ, cols)
+	} else {
+		o.recordMetrics("SELECT")
+		num, err = o.orm.alias.DbBaser.ReadBatch(o.orm.db, o, o.mi, o.cond, container, o.orm.alias.TZ, cols)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -303,22 +337,43 @@ func (o *querySet) One(container interface{}, cols ...string) error {
 // expres means condition expression.
 // it converts data to []map[column]value.
 func (o *querySet) Values(results *[]Params, exprs ...string) (int64, error) {
-	o.recordMetrics("SELECT")
-	return o.orm.alias.DbBaser.ReadValues(o.orm.db, o, o.mi, o.cond, exprs, results, o.orm.alias.TZ)
+	if o.orm.partnerSlave != nil {
+		slaveOrm := o.orm.partnerSlave.(*orm)
+		o.recordMetricsWithDbType("SELECT", slaveOrm.alias.Name)
+		logs.Notice("[orm-25] use partner slave : ", slaveOrm.alias.Name)
+		return o.orm.alias.DbBaser.ReadValues(slaveOrm.db, o, o.mi, o.cond, exprs, results, o.orm.alias.TZ)
+	} else {
+		o.recordMetrics("SELECT")
+		return o.orm.alias.DbBaser.ReadValues(o.orm.db, o, o.mi, o.cond, exprs, results, o.orm.alias.TZ)
+	}
 }
 
 // query all data and map to [][]interface
 // it converts data to [][column_index]value
 func (o *querySet) ValuesList(results *[]ParamsList, exprs ...string) (int64, error) {
-	o.recordMetrics("SELECT")
-	return o.orm.alias.DbBaser.ReadValues(o.orm.db, o, o.mi, o.cond, exprs, results, o.orm.alias.TZ)
+	if o.orm.partnerSlave != nil {
+		slaveOrm := o.orm.partnerSlave.(*orm)
+		o.recordMetricsWithDbType("SELECT", slaveOrm.alias.Name)
+		logs.Notice("[orm-25] use partner slave : ", slaveOrm.alias.Name)
+		return o.orm.alias.DbBaser.ReadValues(slaveOrm.db, o, o.mi, o.cond, exprs, results, o.orm.alias.TZ)
+	} else {
+		o.recordMetrics("SELECT")
+		return o.orm.alias.DbBaser.ReadValues(o.orm.db, o, o.mi, o.cond, exprs, results, o.orm.alias.TZ)
+	}
 }
 
 // query all data and map to []interface.
 // it's designed for one row record set, auto change to []value, not [][column]value.
 func (o *querySet) ValuesFlat(result *ParamsList, expr string) (int64, error) {
-	o.recordMetrics("SELECT")
-	return o.orm.alias.DbBaser.ReadValues(o.orm.db, o, o.mi, o.cond, []string{expr}, result, o.orm.alias.TZ)
+	if o.orm.partnerSlave != nil {
+		slaveOrm := o.orm.partnerSlave.(*orm)
+		o.recordMetricsWithDbType("SELECT", slaveOrm.alias.Name)
+		logs.Notice("[orm-25] use partner slave : ", slaveOrm.alias.Name)
+		return o.orm.alias.DbBaser.ReadValues(slaveOrm.db, o, o.mi, o.cond, []string{expr}, result, o.orm.alias.TZ)
+	} else {
+		o.recordMetrics("SELECT")
+		return o.orm.alias.DbBaser.ReadValues(o.orm.db, o, o.mi, o.cond, []string{expr}, result, o.orm.alias.TZ)
+	}
 }
 
 // query all rows into map[string]interface with specify key and value column name.
