@@ -30,6 +30,7 @@ var _ENABLE_REOURCE_CALL_TRACE bool
 const _RETRY_COUNT = 3
 
 var _SERVICE_NAME string
+var _SERVICE_MODE string
 
 // Login Cache: 登录信息的缓存机制
 var _RESOURCE_LOGIN_CACHE_SIZE int
@@ -203,7 +204,11 @@ func (this *Resource) request(method string, service string, resource string, da
 	//}
 
 	//构建url.Values
-	params := url.Values{"_v": {"1"}, "__source_service": {_SERVICE_NAME}}
+	params := url.Values{
+		"_v":                  {"1"},
+		"__source_service":    {_SERVICE_NAME},
+		"__source_service_v2": {fmt.Sprintf("%s-%s", _SERVICE_NAME, _SERVICE_MODE)},
+	}
 
 	//处理resource
 	pos := strings.LastIndexByte(resource, '.')
@@ -525,6 +530,7 @@ func init() {
 	_PLATFORM_SECRET = beego.AppConfig.String("system::PLATFORM_SECRET")
 	_USER_LOGIN_SECRET = beego.AppConfig.String("system::USER_LOGIN_SECRET")
 	_SERVICE_NAME = beego.AppConfig.String("appname")
+	_SERVICE_MODE = beego.AppConfig.String("system::SERVICE_MODE")
 	_ENABLE_RESOURCE_LOGIN_CACHE = beego.AppConfig.DefaultBool("system::ENABLE_RESOURCE_LOGIN_CACHE", true)
 	_RESOURCE_LOGIN_CACHE_SIZE = beego.AppConfig.DefaultInt("system::RESOURCE_LOGIN_CACHE_SIZE", 100)
 	_ENABLE_REOURCE_CALL_TRACE = beego.AppConfig.DefaultBool("system::ENABLE_REOURCE_CALL_TRACE", false)
