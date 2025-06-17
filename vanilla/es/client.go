@@ -116,6 +116,31 @@ func (this *ESClient) Push(id string, data interface{}) {
 	}
 }
 
+func (this *ESClient) PushWithRouting(id, routingValue string, data interface{}) {
+	// Add a document
+	startTime := time.Now()
+	indexResult, err := this.client.Index().
+		Index(this.indexName).
+		Type(this.docType).
+		Id(id).
+		Routing(routingValue).
+		BodyJson(&data).
+		Do(this.Ctx)
+	timeDur := time.Since(startTime)
+	metrics.GetEsRequestTimer().WithLabelValues(this.indexName, "push").Observe(timeDur.Seconds())
+	if err != nil {
+		errMsg := fmt.Errorf("es_push doc(id:%s) to index %s: %v", id, this.indexName, err)
+		beego.Error(errMsg)
+		panic(vanilla.NewSystemError("es_push:failed", errMsg.Error()))
+	}
+	if indexResult == nil {
+		errMsg := fmt.Errorf("es_push doc(id:%s) to index %s: result is %v",
+			id, this.indexName, indexResult)
+		beego.Error(errMsg)
+		panic(vanilla.NewSystemError("es_push:failed", errMsg.Error()))
+	}
+}
+
 // Search 查询
 // args: [pageInfo, sortAttrs, rawAggs, aggs]
 func (this *ESClient) Search(filters map[string]interface{}, args ...map[string]interface{}) *ESClient {

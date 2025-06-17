@@ -42,13 +42,17 @@ func RecoverPanic(ctx *context.Context) {
 
 		//记录到sentry
 		{
+			needPush := true
 			errMsg := ""
 			if be, ok := err.(*BusinessError); ok {
+				needPush = be.IsNeedPush()
 				errMsg = fmt.Sprintf("%s - %s", be.ErrCode, be.ErrMsg)
 			} else {
 				errMsg = fmt.Sprint(err)
 			}
-			beego.CaptureErrorToSentry(ctx, errMsg)
+			if needPush {
+				beego.CaptureErrorToSentry(ctx, errMsg)
+			}
 		}
 
 		//记录panic counter

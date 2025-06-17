@@ -7,32 +7,32 @@ import (
 	"strings"
 )
 
-type Query struct{
+type Query struct {
 	data map[string]interface{}
 }
 
-func (this *Query) SetData(data map[string]interface{}){
+func (this *Query) SetData(data map[string]interface{}) {
 	this.data = data
 }
 
-func (this *Query) RemoveKey(key string){
+func (this *Query) RemoveKey(key string) {
 	delete(this.data, key)
 }
 
-func (this *Query) Source() (interface{}, error){
+func (this *Query) Source() (interface{}, error) {
 	return this.data, nil
 }
 
 // aggregation 内部使用，接收外部拼装好的聚合查询字符串
-type aggregation struct{
+type aggregation struct {
 	data interface{}
 }
 
-func (this *aggregation) Source() (interface{}, error){
+func (this *aggregation) Source() (interface{}, error) {
 	return this.data, nil
 }
 
-func newAggregation(data interface{}) *aggregation{
+func newAggregation(data interface{}) *aggregation {
 	instance := new(aggregation)
 	instance.data = data
 	return instance
@@ -41,18 +41,18 @@ func newAggregation(data interface{}) *aggregation{
 // NamedAggregation 供外部使用，可自由组合elastic提供的各类聚合
 type NamedAggregation struct {
 	name string
-	agg elastic.Aggregation
+	agg  elastic.Aggregation
 }
 
-func (this *NamedAggregation) GetName() string{
+func (this *NamedAggregation) GetName() string {
 	return this.name
 }
 
-func (this *NamedAggregation) GetAggregation() elastic.Aggregation{
+func (this *NamedAggregation) GetAggregation() elastic.Aggregation {
 	return this.agg
 }
 
-func NewNamedAggregation (name string, aggregation elastic.Aggregation) *NamedAggregation{
+func NewNamedAggregation(name string, aggregation elastic.Aggregation) *NamedAggregation {
 	instance := new(NamedAggregation)
 	instance.name = name
 	instance.agg = aggregation
@@ -61,13 +61,12 @@ func NewNamedAggregation (name string, aggregation elastic.Aggregation) *NamedAg
 }
 
 // 将rest filter语法转换成es query语法、sort语法
-type QueryParser struct{
+type QueryParser struct {
 	vanilla.ServiceBase
 
-	query *Query
-	mustArray []map[string]interface{}
+	query        *Query
+	mustArray    []map[string]interface{}
 	mustNotArray []map[string]interface{}
-
 }
 
 /**
@@ -111,54 +110,54 @@ type QueryParser struct{
 		}
 	}
 */
-func(this *QueryParser) Parse(filters map[string]interface{}) *Query{
-	if filters == nil{
+func (this *QueryParser) Parse(filters map[string]interface{}) *Query {
+	if filters == nil {
 		this.query.RemoveKey("bool")
-	}else{
+	} else {
 		this.query.RemoveKey("match_all")
 	}
 
 	nestPath2Query := make(map[string]map[string][]interface{})
-	for k, v := range filters{
+	for k, v := range filters {
 		realKey := strings.Split(k, "__")[0]
 		isNested := len(strings.Split(realKey, ".")) > 1
 
-		if len(strings.Split(k, ">")) > 1{
+		if len(strings.Split(k, ">")) > 1 {
 			k = strings.Replace(k, ">", ".", -1)
 		}
 
 		mustNode, mustNotNode := this.makeQuery(k, v)
 
 		var nestedPath string
-		if isNested{
+		if isNested {
 			nestedPath = strings.Split(realKey, ".")[0]
-			if _, ok := nestPath2Query[nestedPath]; !ok{
+			if _, ok := nestPath2Query[nestedPath]; !ok {
 				nestPath2Query[nestedPath] = map[string][]interface{}{
-					"must": make([]interface{}, 0),
+					"must":     make([]interface{}, 0),
 					"must_not": make([]interface{}, 0),
 				}
 			}
 		}
 
-		if mustNode != nil{
-			if !isNested{
+		if mustNode != nil {
+			if !isNested {
 				this.mustArray = append(this.mustArray, mustNode)
-			}else{
+			} else {
 				nestPath2Query[nestedPath]["must"] = append(nestPath2Query[nestedPath]["must"], mustNode)
 			}
 		}
 
-		if mustNotNode != nil{
-			if !isNested{
+		if mustNotNode != nil {
+			if !isNested {
 				this.mustNotArray = append(this.mustNotArray, mustNotNode)
-			}else{
+			} else {
 				nestPath2Query[nestedPath]["must_not"] = append(nestPath2Query[nestedPath]["must_not"], mustNotNode)
 			}
 		}
 	}
 
-	for nestPath, nestQuery := range nestPath2Query{
-		if len(nestQuery["must"]) > 0{
+	for nestPath, nestQuery := range nestPath2Query {
+		if len(nestQuery["must"]) > 0 {
 			this.mustArray = append(this.mustArray, map[string]interface{}{
 				"nested": map[string]interface{}{
 					"path": nestPath,
@@ -170,7 +169,7 @@ func(this *QueryParser) Parse(filters map[string]interface{}) *Query{
 				},
 			})
 		}
-		if len(nestQuery["must_not"]) > 0{
+		if len(nestQuery["must_not"]) > 0 {
 			this.mustNotArray = append(this.mustNotArray, map[string]interface{}{
 				"nested": map[string]interface{}{
 					"path": nestPath,
@@ -187,23 +186,23 @@ func(this *QueryParser) Parse(filters map[string]interface{}) *Query{
 	return this.query
 }
 
-func(this *QueryParser) makeQuery(k string, v interface{})(map[string]interface{}, map[string]interface{}){
+func (this *QueryParser) makeQuery(k string, v interface{}) (map[string]interface{}, map[string]interface{}) {
 	splits := strings.Split(k, "__")
 	var mustNode map[string]interface{}
 	var mustNotNode map[string]interface{}
 
-	if len(splits) == 1{
-		mustNode = 	map[string]interface{}{
+	if len(splits) == 1 {
+		mustNode = map[string]interface{}{
 			"term": map[string]interface{}{
 				k: v,
 			},
 		}
-	}else if len(splits) == 2{
+	} else if len(splits) == 2 {
 		key := splits[0]
 		op := splits[1]
 		switch op {
 		case "exact":
-			mustNode = 	map[string]interface{}{
+			mustNode = map[string]interface{}{
 				"term": map[string]interface{}{
 					key: v,
 				},
@@ -211,6 +210,12 @@ func(this *QueryParser) makeQuery(k string, v interface{})(map[string]interface{
 		case "icontain", "contains", "contain":
 			mustNode = map[string]interface{}{
 				"match_phrase": map[string]interface{}{
+					key: v,
+				},
+			}
+		case "match":
+			mustNode = map[string]interface{}{
+				"match": map[string]interface{}{
 					key: v,
 				},
 			}
@@ -242,17 +247,17 @@ func(this *QueryParser) makeQuery(k string, v interface{})(map[string]interface{
 		case "wildcard":
 			mustNode = map[string]interface{}{
 				"wildcard": map[string]interface{}{
-					key+".keyword": "*"+v.(string)+"*",
+					key + ".keyword": "*" + v.(string) + "*",
 				},
 			}
 		case "in":
-			mustNode = 	map[string]interface{}{
+			mustNode = map[string]interface{}{
 				"terms": map[string]interface{}{
 					key: v.([]interface{}),
 				},
 			}
 		case "lt", "gt", "lte", "gte":
-			mustNode = 	map[string]interface{}{
+			mustNode = map[string]interface{}{
 				"range": map[string]map[string]interface{}{
 					key: {
 						op: v,
@@ -279,7 +284,7 @@ func(this *QueryParser) makeQuery(k string, v interface{})(map[string]interface{
 	return mustNode, mustNotNode
 }
 
-func NewQueryParser() *QueryParser{
+func NewQueryParser() *QueryParser {
 	parser := new(QueryParser)
 	parser.mustArray = make([]map[string]interface{}, 0)
 	parser.mustNotArray = make([]map[string]interface{}, 0)
@@ -289,7 +294,7 @@ func NewQueryParser() *QueryParser{
 		"bool": map[string]interface{}{
 			"filter": map[string]interface{}{
 				"bool": map[string]interface{}{
-					"must": &parser.mustArray,
+					"must":     &parser.mustArray,
 					"must_not": &parser.mustNotArray,
 				},
 			},
