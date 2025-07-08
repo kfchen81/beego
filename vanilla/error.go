@@ -38,6 +38,21 @@ func NewBusinessError(code string, msg string) *BusinessError {
 	}
 }
 
+func NewBusinessErrorFromError(err error) *BusinessError {
+	switch err.(type) {
+	case *BusinessError:
+		return err.(*BusinessError)
+	}
+
+	errCode := err.Error()
+	return &BusinessError{
+		ERROR_TYPE_BUSINESS,
+		errCode,
+		errCode,
+		true,
+	}
+}
+
 func NewSystemError(code string, msg string) *BusinessError {
 	return &BusinessError{
 		ERROR_TYPE_SYSTEM,

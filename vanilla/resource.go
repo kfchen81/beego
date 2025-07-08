@@ -3,7 +3,6 @@ package vanilla
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/bitly/go-simplejson"
 	"github.com/kfchen81/beego"
@@ -322,19 +321,18 @@ func (this *Resource) request(method string, service string, resource string, da
 
 	resourceResp := new(ResourceResponse)
 	resourceResp.RespData = jsonObj
-	//fmt.Println(string(body))
 
 	if resourceResp.IsSuccess() {
 		return resourceResp, nil, nil
 	} else {
 		logs.Critical(jsonObj)
 		errCode := jsonObj.Get("errCode")
-		if errCode == nil {
-			return resourceResp, errors.New("remote_service_error"), nil
-		} else {
-			this.handleJWTError(errCode.MustString())
-			return resourceResp, errors.New(errCode.MustString()), nil
-		}
+		errMsg := jsonObj.Get("errMsg")
+
+		this.handleJWTError(errCode.MustString())
+
+		resultErr := NewBusinessError(errCode.MustString(), errMsg.MustString())
+		return resourceResp, resultErr, nil
 	}
 }
 

@@ -117,7 +117,7 @@ func RecoverPanic(ctx *context.Context) {
 				"data": Map{
 					"endpoint": endpoint,
 				},
-				"errCode":     fmt.Sprintf("system:exception(%s)", err),
+				"errCode":     fmt.Sprintf("%s", err),
 				"errMsg":      fmt.Sprintf("%s", err),
 				"innerErrMsg": "",
 			}
