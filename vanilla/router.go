@@ -6,46 +6,62 @@ import (
 
 	"reflect"
 
+	"os"
+
 	"github.com/kfchen81/beego"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"os"
 )
 
-//RESOURCES 所有资源名的集合
+// RESOURCES 所有资源名的集合
 var RESOURCES = make([]string, 0, 100)
 
 var enableDevTestResource = (os.Getenv("ENABLE_DEV_TEST_RESOURCE") == "1")
 
-//Router 添加路由
+// Router 添加路由
 func Router(r RestResourceInterface) {
 	//check whether is dev RESOURCE
 	if r.IsForDevTest() && !enableDevTestResource {
 		return
 	}
-	
+
 	resource := r.Resource()
 	RESOURCES = append(RESOURCES, resource)
 
+	controller := r
+	isRedirected := false
+	if target := r.Redirect(); target != nil {
+		controller = target
+		isRedirected = true
+	}
+
+	registerURLs(r, controller, isRedirected)
+}
+
+func registerURLs(source RestResourceInterface, controller RestResourceInterface, isRedirected bool) {
+	resource := source.Resource()
 	items := strings.Split(resource, ".")
-	
-	// html url
-	if r.EnableHTMLResource() {
+	logPrefix := "[resource]: "
+	if isRedirected {
+		logPrefix = "[resource-redirect]: "
+	}
+
+	if source.EnableHTMLResource() {
 		url := fmt.Sprintf("/%s/", strings.Join(items, "/"))
-		beego.Info(fmt.Sprintf("[resource]: %s -> %s", url, reflect.TypeOf(r)))
-		beego.Router(url, r)
+		beego.Info(fmt.Sprintf("%s%s -> %v", logPrefix, url, reflect.TypeOf(controller)))
+		beego.Router(url, controller)
 		return
 	}
-	
+
 	//standard url
 	{
 		url := fmt.Sprintf("/%s/", strings.Join(items, "/"))
-		beego.Info(fmt.Sprintf("[resource]: %s -> %s", url, reflect.TypeOf(r)))
-		beego.Router(url, r)
+		beego.Info(fmt.Sprintf("%s%s -> %v", logPrefix, url, reflect.TypeOf(controller)))
+		beego.Router(url, controller)
 	}
-	
+
 	//alias url
 	{
-		for _, alias := range r.GetAlias() {
+		for _, alias := range source.GetAlias() {
 			url := alias
 			if url[0] != '/' {
 				url = "/" + url
@@ -53,8 +69,8 @@ func Router(r RestResourceInterface) {
 			if url[len(url)-1] != '/' {
 				url = url + "/"
 			}
-			beego.Info(fmt.Sprintf("[resource alias]: %s -> %s", url, reflect.TypeOf(r)))
-			beego.Router(url, r)
+			beego.Info(fmt.Sprintf("%salias %s -> %v", logPrefix, url, reflect.TypeOf(controller)))
+			beego.Router(url, controller)
 		}
 	}
 
@@ -67,10 +83,9 @@ func Router(r RestResourceInterface) {
 		itemSclie := items[:]
 		itemSlice := append(itemSclie, lastItem)
 		url := fmt.Sprintf("/%s/", strings.Join(itemSlice, "/"))
-		//beego.Info(fmt.Sprintf("[resource]: %s -> %s", url, reflect.TypeOf(r)))
-		beego.Router(url, r)
+		beego.Router(url, controller)
 	}
-	
+
 	// python eaglet protocol url
 	{
 		items := strings.Split(resource, ".")
@@ -78,7 +93,7 @@ func Router(r RestResourceInterface) {
 			appItems := items[0 : len(items)-1]
 			resourceItem := items[len(items)-1]
 			url := fmt.Sprintf("/%s/%s/", strings.Join(appItems, "."), resourceItem)
-			beego.Router(url, r)
+			beego.Router(url, controller)
 		}
 	}
 }

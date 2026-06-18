@@ -129,6 +129,20 @@ func RegisterPipeTask(pi pipeInterface, spec string) *CronTask {
 	return task
 }
 
+func RegisterPipeTaskInRestMode(pi pipeInterface, spec string) *CronTask {
+	task := RegisterTaskInRestMode(pi.(taskInterface), spec)
+	if task != nil {
+		if pi.EnableParallel() { // 并行模式下，开启通道容量十分之一的goroutine消费通道
+			for i := pi.GetConsumerCount(); i > 0; i-- {
+				fetchData(pi)
+			}
+		} else {
+			fetchData(pi)
+		}
+	}
+	return task
+}
+
 func RegisterTask(task taskInterface, spec string) *CronTask {
 	if beego.AppConfig.DefaultBool("system::ENABLE_CRON_MODE", false) || beego.AppConfig.String("system::SERVICE_MODE") == "cron" {
 		tname := task.GetName()

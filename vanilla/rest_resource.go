@@ -3,14 +3,16 @@ package vanilla
 import (
 	"context"
 	"fmt"
-	"github.com/kfchen81/beego/metrics"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/kfchen81/beego/metrics"
+
 	"github.com/kfchen81/beego"
 
 	"encoding/json"
+
 	"github.com/bitly/go-simplejson"
 	"github.com/go-redsync/redsync"
 	beego_context "github.com/kfchen81/beego/context"
@@ -33,6 +35,7 @@ type RestResourceInterface interface {
 	SetBeegoController(ctx *beego_context.Context, data map[interface{}]interface{})
 	GetLockKey() string
 	GetLockOption() *LockOption
+	Redirect() RestResourceInterface
 }
 
 type AfterCommitCallbackFunc func()
@@ -163,6 +166,10 @@ func (r *RestResource) GetLockKey() string {
 }
 
 func (r *RestResource) GetLockOption() *LockOption {
+	return nil
+}
+
+func (r *RestResource) Redirect() RestResourceInterface {
 	return nil
 }
 
